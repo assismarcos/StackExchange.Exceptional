@@ -74,7 +74,7 @@ namespace StackExchange.Exceptional
         /// When dealing with a non web requests, pass <see langword="null" /> in for context.  
         /// It shouldn't be forgotten for most web application usages, so it's not an optional parameter.
         /// </remarks>
-        public static async Task<Error> LogAsync(
+        public static Task<Error> LogAsync(
             this Exception ex,
             HttpContext context,
             string category = null,
@@ -87,22 +87,27 @@ namespace StackExchange.Exceptional
                 // If we should be ignoring this exception, skip it entirely.
                 // Otherwise create the error itself, populating CustomData with what was passed-in.
                 var error = ex.GetErrorIfNotIgnored(Exceptional.Settings, category, applicationName, rollupPerServer, customData);
-
                 if (error != null)
                 {
                     // Get everything from the HttpContext
                     error.SetProperties(context);
 
-                    if (await error.LogToStoreAsync().ConfigureAwait(false))
-                    {
-                        return error;
-                    }
+                    return LogAsyncCore(error);
                 }
             }
             catch (Exception e)
             {
                 Exceptional.Settings?.OnLogFailure?.Invoke(e);
                 Trace.WriteLine(e);
+            }
+            return Task.FromResult<Error>(null);
+        }
+
+        private static async Task<Error> LogAsyncCore(Error error)
+        {
+            if (await error.LogToStoreAsync().ConfigureAwait(false))
+            {
+                return error;
             }
             return null;
         }
@@ -205,9 +210,26 @@ namespace StackExchange.Exceptional
             }
 
             error.ServerVariables = TryGetCollection(r => r.ServerVariables, ShouldRecordServerVariable);
-            error.QueryString = TryGetCollection(r => r.QueryString);
-            error.Form = TryGetCollection(r => r.Form);
 
+            error.QueryString = TryGetCollection(r => r.QueryString);
+            // Filter query variables for sensitive information
+            var queryFilters = error.Settings.LogFilters.QueryString;
+            if (queryFilters?.Count > 0 && error.QueryString.Count > 0)
+            {
+                var oldQuery = request.Url.Query;
+                var newQuery = oldQuery;
+                foreach (var kv in queryFilters)
+                {
+                    if (error.QueryString[kv.Key] != null)
+                    {
+                        newQuery = newQuery.QueryStringReplace(kv.Key, kv.Value);
+                        error.QueryString[kv.Key] = kv.Value ?? "";
+                    }
+                }
+                error.FullUrl = error.FullUrl.Replace(oldQuery, newQuery);
+            }
+
+            error.Form = TryGetCollection(r => r.Form);
             // Filter form variables for sensitive information
             var formFilters = error.Settings.LogFilters.Form;
             if (formFilters?.Count > 0)

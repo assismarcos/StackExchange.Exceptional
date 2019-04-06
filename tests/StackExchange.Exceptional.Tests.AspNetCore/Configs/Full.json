@@ -22,6 +22,9 @@
       },
       "Header": {
         "Accept-Language": "*********"
+      },
+      "QueryString": {
+        "queryToken": "**no tokens saved! pheww**"
       }
     },
     "Ignore": {
@@ -58,6 +61,12 @@
     //   "ApplicationName": "Samples (ASP.NET Core)",
     //   "Type": "MySQL",
     //   "ConnectionString": "Server=.;Database=Exceptions;Username=Exceptions;Pwd=myPassword!"
+    // }
+
+    // "Store": {
+    //   "ApplicationName": "Samples (ASP.NET Core)",
+    //   "Type": "MongoDB",
+    //   "ConnectionString": "mongodb://localhost/test"
     // }
   }
 }
